@@ -1,0 +1,93 @@
+{
+  "name": "script-manager",
+  "version": "1.0.0",
+  "description": "Electron-based desktop application for managing scripts and bots on Windows PC from a single panel",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron . --ignore-gpu-blacklist --force-gpu-mem-available --disable-gpu-sandbox --no-sandbox",
+    "dev": "electron . --inspect=9229 --ignore-gpu-blacklist --force-gpu-mem-available --no-sandbox",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:portable": "electron-builder --win portable",
+    "build:all": "electron-builder --win --publish never",
+    "dist": "npm run build:all",
+    "pack": "electron-builder --dir",
+    "test": "node tests/script-lifecycle.test.js"
+  },
+  "keywords": [
+    "electron",
+    "script-manager",
+    "process-manager",
+    "desktop-app",
+    "windows"
+  ],
+  "author": "Script Manager Developer",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/uncertainmario/Script-Manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/uncertainmario/Script-Manager/issues"
+  },
+  "homepage": "https://github.com/uncertainmario/Script-Manager#readme",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "dependencies": {
+    "chokidar": "^3.5.3",
+    "nodemailer": "^7.0.5",
+    "ws": "^8.14.0"
+  },
+  "build": {
+    "appId": "com.scriptmanager.app",
+    "productName": "Script Manager",
+    "icon": "assets/stm.ico",
+    "directories": {
+      "output": "dist"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "files": [
+      "src/**/*",
+      "data/**/*",
+      "assets/**/*",
+      "processManager.js",
+      "node_modules/**/*",
+      "!node_modules/.cache/**/*"
+    ],
+    "extraFiles": [
+      {
+        "from": "logs",
+        "to": "logs",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/stm.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-Portable.exe"
+    },
+    "compression": "store",
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
+    "afterSign": null,
+    "forceCodeSigning": false
+  }
+}

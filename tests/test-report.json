@@ -1,0 +1,59 @@
+{
+  "summary": {
+    "total": 8,
+    "passed": 8,
+    "failed": 0,
+    "successRate": "100.0"
+  },
+  "results": [
+    {
+      "name": "Script Ekleme Testi",
+      "success": true,
+      "message": "Script başarıyla eklendi",
+      "timestamp": "2025-07-14T17:26:09.097Z"
+    },
+    {
+      "name": "Script Çalıştırma Testi",
+      "success": true,
+      "message": "Script başarıyla çalıştı",
+      "timestamp": "2025-07-14T17:26:19.118Z"
+    },
+    {
+      "name": "Script Durdurma Testi",
+      "success": true,
+      "message": "Script başarıyla durduruldu",
+      "timestamp": "2025-07-14T17:26:21.128Z"
+    },
+    {
+      "name": "Script Yeniden Başlatma Testi",
+      "success": true,
+      "message": "Script başarıyla yeniden başlatıldı",
+      "timestamp": "2025-07-14T17:26:25.144Z"
+    },
+    {
+      "name": "Hata Yönetimi Testi",
+      "success": true,
+      "message": "Hata başarıyla yakalandı",
+      "timestamp": "2025-07-14T17:26:27.191Z"
+    },
+    {
+      "name": "Script Silme Testi",
+      "success": true,
+      "message": "Script başarıyla silindi",
+      "timestamp": "2025-07-14T17:26:27.192Z"
+    },
+    {
+      "name": "Kalıcılık Testi",
+      "success": true,
+      "message": "Veri başarıyla kalıcı hale getirildi",
+      "timestamp": "2025-07-14T17:26:27.193Z"
+    },
+    {
+      "name": "Performans Testi",
+      "success": true,
+      "message": "Performans testi başarılı (0ms)",
+      "timestamp": "2025-07-14T17:26:27.193Z"
+    }
+  ],
+  "timestamp": "2025-07-14T17:26:27.196Z"
+}

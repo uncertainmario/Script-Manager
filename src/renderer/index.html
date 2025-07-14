@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Script Manager</title>
+    <link rel="stylesheet" href="css/design-tokens.css">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="js/i18n.js"></script>
+    <script src="js/theme-toggle.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="app-title">
+                    <span class="icon">⚙️</span>
+                    <span data-i18n="app.title">Script Manager</span>
+                </h1>
+                <div class="header-actions">
+                    <button id="add-script-btn" class="btn btn-primary">
+                        <span class="icon">➕</span>
+                        <span data-i18n="app.add">Add Script</span>
+                    </button>
+                    <button id="refresh-btn" class="btn btn-secondary">
+                        <span class="icon">🔄</span>
+                        <span data-i18n="app.refresh">Refresh</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3 data-i18n="sidebar.status">Status</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="stat-label" data-i18n="sidebar.totalScripts">Total Scripts</span>
+                            <span class="stat-value" id="total-scripts">0</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label" data-i18n="sidebar.runningScripts">Running</span>
+                            <span class="stat-value" id="running-scripts">0</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label" data-i18n="sidebar.stoppedScripts">Stopped</span>
+                            <span class="stat-value" id="stopped-scripts">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3 data-i18n="sidebar.systemResources">System Resources</h3>
+                    <div class="resource-monitor">
+                        <div class="resource-item">
+                            <span class="resource-label" data-i18n="sidebar.cpu">CPU:</span>
+                            <span class="resource-value" id="cpu-usage">-%</span>
+                        </div>
+                        <div class="resource-item">
+                            <span class="resource-label" data-i18n="sidebar.memory">Memory:</span>
+                            <span class="resource-value" id="memory-usage">- MB</span>
+                        </div>
+                        <div class="resource-item">
+                            <span class="resource-label" data-i18n="sidebar.uptime">Uptime:</span>
+                            <span class="resource-value" id="uptime">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3 data-i18n="sidebar.filters">Filters</h3>
+                    <div class="filter-buttons">
+                        <button class="filter-btn active" data-filter="all">
+                            <span class="icon">📋</span>
+                            <span data-i18n="sidebar.all">All</span>
+                        </button>
+                        <button class="filter-btn" data-filter="running">
+                            <span class="icon">▶️</span>
+                            <span data-i18n="sidebar.running">Running</span>
+                        </button>
+                        <button class="filter-btn" data-filter="stopped">
+                            <span class="icon">⏹️</span>
+                            <span data-i18n="sidebar.stopped">Stopped</span>
+                        </button>
+                        <button class="filter-btn" data-filter="error">
+                            <span class="icon">❌</span>
+                            <span data-i18n="sidebar.error">Error</span>
+                        </button>
+                    </div>
+                </div>
+
+
+
+
+            </aside>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Script List -->
+                <div class="script-list-container">
+                    <div class="section-header">
+                        <h2 data-i18n="scripts.title">Scripts</h2>
+                        <div class="search-box">
+                            <input type="text" id="search-input" data-i18n-attr='{"placeholder": "app.search"}' placeholder="Search scripts...">
+                            <span class="search-icon">🔍</span>
+                        </div>
+                    </div>
+
+                    <!-- Drag & Drop Zone -->
+                    <div class="drag-drop-zone" id="drag-drop-zone">
+                        <div class="drag-drop-content">
+                            <div class="drag-drop-icon">📁</div>
+                            <h3 data-i18n="scripts.dragDropTitle">Drag script files here</h3>
+                            <p><span data-i18n="scripts.dragDropSubtitle">or click here for manual adding</span></p>
+                            <div class="supported-formats">
+                                <span data-i18n="scripts.supportedFormats">Supported formats: .exe, .bat, .cmd, .ps1</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="script-list" id="script-list">
+                        <!-- Script items will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Log Viewer -->
+                <div class="log-viewer" id="log-viewer">
+                    <div class="log-header">
+                        <h3 id="log-title" data-i18n="logs.title">Log Viewer</h3>
+                        <div class="log-controls">
+                            <button id="clear-logs-btn" class="btn btn-small">
+                                <span class="icon">🗑️</span>
+                                <span data-i18n="app.clear">Clear</span>
+                            </button>
+                            <button id="export-logs-btn" class="btn btn-small">
+                                <span class="icon">💾</span>
+                                <span data-i18n="app.export">Export</span>
+                            </button>
+                            <button id="close-logs-btn" class="btn btn-small">
+                                <span class="icon">✖️</span>
+                                <span data-i18n="app.close">Close</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="log-content" id="log-content">
+                        <div class="log-empty">
+                            <p data-i18n="logs.empty">Select a script or start a script to view logs</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Modal -->
+        <div class="modal" id="script-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modal-title" data-i18n="modal.addScript">Add Script</h3>
+                    <button class="modal-close" id="modal-close">✖️</button>
+                </div>
+                <div class="modal-body">
+                    <form id="script-form">
+                        <div class="form-group">
+                            <label for="script-name" data-i18n="modal.scriptName">Script Name:</label>
+                            <input type="text" id="script-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="script-path" data-i18n="modal.scriptPath">Script Path:</label>
+                            <div class="input-group">
+                                <input type="text" id="script-path" required readonly>
+                                <button type="button" id="browse-script" class="btn btn-secondary">
+                                    <span class="icon">📁</span>
+                                    <span data-i18n="app.browse">Browse</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="label-with-info">
+                                <label for="script-args" data-i18n="modal.parameters">Parameters (optional):</label>
+                                <span class="info-icon" id="parameters-info">ℹ️</span>
+                            </div>
+                            <input type="text" id="script-args" data-i18n-attr='{"placeholder": "modal.parametersPlaceholder"}' placeholder="--arg1 value1 --arg2 value2">
+                        </div>
+                        <div class="form-group">
+                            <label for="working-dir" data-i18n="modal.workingDirectory">Working Directory:</label>
+                            <div class="input-group">
+                                <input type="text" id="working-dir">
+                                <button type="button" id="browse-workdir" class="btn btn-secondary">
+                                    <span class="icon">📁</span>
+                                    <span data-i18n="app.browse">Browse</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="auto-restart">
+                                <span class="checkmark"></span>
+                                <span data-i18n="modal.autoRestart">Auto restart</span>
+                            </label>
+                        </div>
+                        <div class="form-group" id="restart-delay-group" style="display: none;">
+                            <label for="restart-delay" data-i18n="modal.restartDelay">Restart delay (ms):</label>
+                            <input type="number" id="restart-delay" value="5000" min="1000">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="modal-cancel" class="btn btn-secondary" data-i18n="app.cancel">Cancel</button>
+                    <button type="submit" form="script-form" class="btn btn-primary" data-i18n="app.save">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Script Settings Modal -->
+        <div class="modal" id="script-settings-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="settings-modal-title" data-i18n="modal.scriptSettings">Script Settings</h3>
+                    <button class="modal-close" id="settings-modal-close">✖️</button>
+                </div>
+                <div class="modal-body">
+                    <form id="script-settings-form">
+                        <div class="form-group">
+                            <label for="script-settings-name" data-i18n="modal.scriptName">Script Name:</label>
+                            <input type="text" id="script-settings-name" readonly class="readonly-input">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="auto-start-enabled">
+                                <span data-i18n="modal.autoStartEnabled">Enable auto restart</span>
+                            </label>
+                        </div>
+                        
+                        <div class="form-group" id="auto-start-time-group" style="display: none;">
+                            <label for="auto-start-time" data-i18n="modal.autoStartTime">Restart time:</label>
+                            <input type="time" id="auto-start-time" value="09:00">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="log-level" data-i18n="modal.logLevel">Log level:</label>
+                            <select id="log-level">
+                                <option value="all" data-i18n="logLevels.all">All logs</option>
+                                <option value="critical" data-i18n="logLevels.critical">Critical logs only</option>
+                                <option value="error" data-i18n="logLevels.error">Error logs only</option>
+                                <option value="none" data-i18n="logLevels.none">No logging</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="enable-file-logging">
+                                <span data-i18n="modal.enableFileLogging">Save logs to file</span>
+                            </label>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="max-log-size" data-i18n="modal.maxLogSize">Max log size (MB):</label>
+                            <input type="number" id="max-log-size" value="10" min="1" max="100">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="log-rotation">
+                                <span data-i18n="modal.logRotation">Log rotation</span>
+                            </label>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="priority-level" data-i18n="modal.priorityLevel">Priority level:</label>
+                            <select id="priority-level">
+                                <option value="normal" data-i18n="priorities.normal">Normal</option>
+                                <option value="high" data-i18n="priorities.high">High</option>
+                                <option value="realtime" data-i18n="priorities.realtime">Real-time</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="email-notifications">
+                                <span data-i18n="modal.emailNotifications">Email notifications</span>
+                            </label>
+                        </div>
+                        
+                        <div class="form-group" id="email-group" style="display: none;">
+                            <label for="notification-email" data-i18n="modal.notificationEmail">Notification email:</label>
+                            <input type="email" id="notification-email" data-i18n-attr='{"placeholder": "modal.emailPlaceholder"}' placeholder="example@email.com">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="settings-modal-cancel" class="btn btn-secondary" data-i18n="app.cancel">Cancel</button>
+                    <button type="submit" form="script-settings-form" class="btn btn-primary" data-i18n="app.save">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Email Settings Modal -->
+        <div class="modal" id="global-email-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 data-i18n="emailModal.title">Email Ayarları</h3>
+                    <button class="modal-close" id="global-email-close">✖️</button>
+                </div>
+                <div class="modal-body">
+                    <form id="global-email-form">
+                        <div class="form-group">
+                            <label for="global-email-service" data-i18n="emailModal.emailService">Email Servis:</label>
+                            <select id="global-email-service">
+                                <option value="gmail" data-i18n="emailServices.gmail">Gmail</option>
+                                <option value="outlook" data-i18n="emailServices.outlook">Outlook</option>
+                                <option value="yahoo" data-i18n="emailServices.yahoo">Yahoo</option>
+                                <option value="custom" data-i18n="emailServices.custom">Özel SMTP</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="global-email-username" data-i18n="emailModal.emailUsername">Email Kullanıcı Adı:</label>
+                            <input type="email" id="global-email-username" data-i18n-attr='{"placeholder": "emailModal.emailUsernamePlaceholder"}' placeholder="sizin-email@gmail.com">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="global-email-password" data-i18n="emailModal.emailPassword">Email Şifre/App Password:</label>
+                            <input type="password" id="global-email-password" data-i18n-attr='{"placeholder": "emailModal.emailPasswordPlaceholder"}' placeholder="Uygulama şifreniz">
+                        </div>
+                        
+                        <div class="form-group" id="global-custom-smtp-group" style="display: none;">
+                            <label for="global-smtp-host" data-i18n="emailModal.smtpHost">SMTP Host:</label>
+                            <input type="text" id="global-smtp-host" placeholder="smtp.gmail.com">
+                            
+                            <label for="global-smtp-port" style="margin-top: 8px;" data-i18n="emailModal.smtpPort">SMTP Port:</label>
+                            <input type="number" id="global-smtp-port" placeholder="587">
+                            
+                            <label class="checkbox-label" style="margin-top: 8px;">
+                                <input type="checkbox" id="global-smtp-secure">
+                                <span class="checkmark"></span>
+                                <span data-i18n="emailModal.smtpSecure">SSL/TLS Güvenli Bağlantı</span>
+                            </label>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="auto-restart-app">
+                                <span class="checkmark"></span>
+                                <span data-i18n="emailModal.autoRestartApp">Her işlemden sonra uygulamayı otomatik başlat</span>
+                            </label>
+                        </div>
+                        
+                        <button type="button" id="global-test-email-btn" class="btn btn-secondary" style="margin-top: 15px;">
+                            <span class="icon">📧</span>
+                            <span data-i18n="emailModal.testEmail">Test Email Gönder</span>
+                        </button>
+                        
+                        <div class="form-hint">
+                            <strong data-i18n="emailModal.gmailNote">Gmail için:</strong> <span data-i18n="emailModal.gmailInstructions">Google hesabınızda 2 adımlı doğrulama aktif edip "Uygulama şifreleri" oluşturun.</span>
+                            <br><strong data-i18n="emailModal.securityNote">Güvenlik:</strong> <span data-i18n="emailModal.securityInstructions">Şifreler güvenli şekilde şifrelenerek saklanır.</span>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="global-email-cancel" class="btn btn-secondary" data-i18n="app.cancel">İptal</button>
+                    <button type="submit" form="global-email-form" class="btn btn-primary" data-i18n="app.save">Kaydet</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loading-overlay">
+            <div class="loading-spinner"></div>
+            <p id="loading-text">Yükleniyor...</p>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="js/main.js"></script>
+</body>
+</html> 
