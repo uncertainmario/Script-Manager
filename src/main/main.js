@@ -434,6 +434,28 @@ class ScriptManagerApp {
             return this.processManager.getLogs(scriptId, lastN);
         });
 
+        ipcMain.handle('get-log-directory', async () => {
+            return this.processManager.logsDir;
+        });
+
+        ipcMain.handle('open-log-directory', async () => {
+            try {
+                const { shell } = require('electron');
+                await shell.openPath(this.processManager.logsDir);
+                return { success: true };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        });
+
+        ipcMain.handle('get-portable-status', async () => {
+            return {
+                isPortable: this.processManager.isPortable,
+                dataDir: path.dirname(this.processManager.dataFile),
+                logsDir: this.processManager.logsDir
+            };
+        });
+
         ipcMain.handle('select-file', async () => {
             return await this.selectFile();
         });
@@ -565,7 +587,11 @@ class ScriptManagerApp {
                 return { success: false, error: error.message };
             }
         });
-}
+
+        ipcMain.handle('get-current-language', () => {
+            return this.getCurrentLanguage();
+        });
+    }
 
     sendToRenderer(channel, data) {
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -957,11 +983,16 @@ class ScriptManagerApp {
 
     loadLanguageSetting() {
         try {
-            const configPath = path.join(app.getPath('userData'), 'language-config.json');
-            if (fs.existsSync(configPath)) {
-                const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-                this.currentLanguage = config.language || 'en';
-            }
+            // Her zaman İngilizce ile başla (hem development hem production)
+            this.currentLanguage = 'en';
+            
+            // Config dosyasını da temizle (isteğe bağlı)
+            // const configPath = path.join(app.getPath('userData'), 'language-config.json');
+            // if (fs.existsSync(configPath)) {
+            //     fs.unlinkSync(configPath);
+            //     console.log('Previous language config removed');
+            // }
+            
         } catch (error) {
             console.error('Error loading language setting:', error);
             this.currentLanguage = 'en';

@@ -98,9 +98,11 @@
   },
   "logs": {
     "title": "Log Görüntüleyici",
-    "empty": "Bir script seçin veya log'ları görmek için bir script başlatın",
-    "exportLogs": "Logları Dışa Aktar",
-    "clearLogs": "Logları Temizle"
+    "export": "Logları Dışa Aktar",
+    "clear": "Temizle",
+    "close": "Kapat",
+    "openDirectory": "Log Klasörünü Aç",
+    "empty": "Henüz log kaydı yok"
   },
   "menu": {
     "settings": "Ayarlar",

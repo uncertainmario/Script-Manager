@@ -13,7 +13,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     removeScript: (scriptId) => ipcRenderer.invoke('remove-script', scriptId),
     
+    // Log operations
     getLogs: (scriptId, lastN = 100) => ipcRenderer.invoke('get-logs', scriptId, lastN),
+    getLogDirectory: () => ipcRenderer.invoke('get-log-directory'),
+    openLogDirectory: () => ipcRenderer.invoke('open-log-directory'),
+    getPortableStatus: () => ipcRenderer.invoke('get-portable-status'),
     
     selectFile: () => ipcRenderer.invoke('select-file'),
     
@@ -82,7 +86,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     removeListener: (channel, callback) => {
         ipcRenderer.removeListener(channel, callback);
-    }
+    },
+
+    getCurrentLanguage: () => ipcRenderer.invoke('get-current-language'),
 });
 
 console.log('Preload script loaded successfully'); 

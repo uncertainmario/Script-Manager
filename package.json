@@ -79,7 +79,8 @@
       ],
       "icon": "assets/stm.ico",
       "requestedExecutionLevel": "asInvoker",
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "forceCodeSigning": false
     },
     "portable": {
       "artifactName": "${productName}-${version}-Portable.exe"
@@ -88,6 +89,9 @@
     "nodeGypRebuild": false,
     "buildDependenciesFromSource": false,
     "afterSign": null,
-    "forceCodeSigning": false
+    "forceCodeSigning": false,
+    "electronDownload": {
+      "cache": false
+    }
   }
 }

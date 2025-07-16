@@ -20,16 +20,65 @@ class ScriptManagerUI {
             buffer: 3
         };
         
-        this.initializeElements();
-        this.setupEventListeners();
-        this.setupDragDrop();
-        this.loadScripts();
-        this.setupIpcListeners();
-        this.startResourceMonitoring();
-        this.initializeI18n();
+        // DOM hazır olduğunda init'i çağır
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.init());
+        } else {
+            // DOM zaten hazır
+            this.init();
+        }
         
         window.addEventListener('beforeunload', () => this.cleanup());
         this.setupGlobalErrorHandling();
+    }
+
+    async init() {
+        try {
+            // DOM elementlerini initialize et
+            this.initializeElements();
+            
+            // Event listener'ları kur
+            this.setupEventListeners();
+            
+            // Drag & Drop kur
+            this.setupDragDrop();
+            
+            // IPC listener'ları kur
+            this.setupIpcListeners();
+            
+            // Resource monitoring başlat
+            this.startResourceMonitoring();
+            
+            // Main process'ten dil bilgisini al ve i18n'i başlat
+            let currentLanguage = 'en';
+            try {
+                currentLanguage = await window.electronAPI.getCurrentLanguage();
+            } catch (error) {
+                console.error('Error getting language from main process:', error);
+            }
+            
+            // i18n sistemini başlat
+            await this.initializeI18n();
+            
+            // Diğer async işlemleri yap
+            await this.loadScripts();
+            
+            await this.loadSettings();
+            
+            await this.checkPortableStatus();
+            
+            // Stats'ı başlat
+            this.startStatsUpdate();
+            
+            // Portable build bilgisi göster
+            const portableStatus = await window.electronAPI.getPortableStatus();
+            if (portableStatus.isPortable) {
+                this.showNotification('Portable build aktif - Loglar: ' + portableStatus.logsDir, 'info', 5000);
+            }
+            
+        } catch (error) {
+            console.error('Initialization error:', error);
+        }
     }
 
     setupGlobalErrorHandling() {
@@ -161,78 +210,224 @@ class ScriptManagerUI {
             autoRestartApp: document.getElementById('auto-restart-app'),
             globalTestEmailBtn: document.getElementById('global-test-email-btn')
         };
+        
+        // Null element kontrolü
+        const missingElements = [];
+        for (const [key, element] of Object.entries(this.elements)) {
+            if (!element) {
+                missingElements.push(key);
+            }
+        }
+        
+        if (missingElements.length > 0) {
+            console.error('Missing DOM elements:', missingElements);
+        }
+        
+        // Log viewer controls
+        this.elements.exportLogs = document.getElementById('export-logs');
+        this.elements.clearLogs = document.getElementById('clear-logs');
+        this.elements.openLogDirectory = document.getElementById('open-log-directory');
+        this.elements.closeLogs = document.getElementById('close-logs');
+        
+        // Bu elementler için de event listener'lar kur (null kontrolü ile)
+        if (this.elements.exportLogs) {
+            this.elements.exportLogs.addEventListener('click', () => this.exportLogs());
+        }
+        if (this.elements.clearLogs) {
+            this.elements.clearLogs.addEventListener('click', () => this.clearLogs());
+        }
+        if (this.elements.openLogDirectory) {
+            this.elements.openLogDirectory.addEventListener('click', () => this.openLogDirectory());
+        }
+        if (this.elements.closeLogs) {
+            this.elements.closeLogs.addEventListener('click', () => this.closeLogs());
+        }
     }
 
     setupEventListeners() {
-        this.elements.addScriptBtn.addEventListener('click', () => this.showAddScriptModal());
-        this.elements.refreshBtn.addEventListener('click', () => this.loadScripts());
+        // Null kontrolü ile event listener'lar
+        if (this.elements.addScriptBtn) {
+            this.elements.addScriptBtn.addEventListener('click', () => this.showAddScriptModal());
+        }
         
-        this.elements.modalClose.addEventListener('click', () => this.hideModal());
-        this.elements.modalCancel.addEventListener('click', () => this.hideModal());
-        this.elements.modal.addEventListener('click', (e) => {
-            if (e.target === this.elements.modal) {
-                this.hideModal();
+        if (this.elements.refreshBtn) {
+            this.elements.refreshBtn.addEventListener('click', () => this.loadScripts());
+        }
+        
+        // Event delegation for script buttons (backup solution)
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.script-actions button')) {
+                const button = e.target.closest('.script-actions button');
+                const scriptId = button.closest('.script-item').dataset.scriptId;
+                
+                // Only handle if onclick failed
+                if (button.onclick) return;
+                
+                if (button.textContent.includes('Start') || button.textContent.includes('Başlat')) {
+                    e.preventDefault();
+                    this.startScript(scriptId);
+                } else if (button.textContent.includes('Stop') || button.textContent.includes('Durdur')) {
+                    e.preventDefault();
+                    this.stopScript(scriptId);
+                } else if (button.textContent.includes('Restart') || button.textContent.includes('Yeniden')) {
+                    e.preventDefault();
+                    this.restartScript(scriptId);
+                } else if (button.textContent.includes('Logs') || button.textContent.includes('Loglar')) {
+                    e.preventDefault();
+                    this.showLogs(scriptId);
+                } else if (button.textContent.includes('Settings') || button.textContent.includes('Ayarlar')) {
+                    e.preventDefault();
+                    this.showScriptSettings(scriptId);
+                } else if (button.textContent.includes('Remove') || button.textContent.includes('Kaldır')) {
+                    e.preventDefault();
+                    this.removeScript(scriptId);
+                } else if (button.textContent.includes('Open') || button.textContent.includes('Aç')) {
+                    e.preventDefault();
+                    this.openScriptFile(scriptId);
+                }
             }
         });
         
-        this.elements.scriptForm.addEventListener('submit', (e) => this.handleFormSubmit(e));
-        this.elements.browseScript.addEventListener('click', () => this.browseScriptFile());
-        this.elements.browseWorkdir.addEventListener('click', () => this.browseWorkingDirectory());
+        // Modal event listeners
+        if (this.elements.modalClose) {
+            this.elements.modalClose.addEventListener('click', () => this.hideModal());
+        }
         
-        this.elements.autoRestart.addEventListener('change', (e) => {
-            this.elements.restartDelayGroup.style.display = e.target.checked ? 'block' : 'none';
-        });
+        if (this.elements.modalCancel) {
+            this.elements.modalCancel.addEventListener('click', () => this.hideModal());
+        }
         
-        this.elements.searchInput.addEventListener('input', (e) => this.filterScripts(e.target.value));
+        if (this.elements.modal) {
+            this.elements.modal.addEventListener('click', (e) => {
+                if (e.target === this.elements.modal) {
+                    this.hideModal();
+                }
+            });
+        }
         
-        this.elements.filterBtns.forEach(btn => {
-            btn.addEventListener('click', () => this.setFilter(btn.dataset.filter));
-        });
+        // Form event listeners
+        if (this.elements.scriptForm) {
+            this.elements.scriptForm.addEventListener('submit', (e) => this.handleFormSubmit(e));
+        }
         
-        this.elements.closeLogsBtn.addEventListener('click', () => this.hideLogViewer());
-        this.elements.clearLogsBtn.addEventListener('click', () => this.clearLogs());
-        this.elements.exportLogsBtn.addEventListener('click', () => this.exportLogs());
+        if (this.elements.browseScript) {
+            this.elements.browseScript.addEventListener('click', () => this.browseScriptFile());
+        }
         
+        if (this.elements.browseWorkdir) {
+            this.elements.browseWorkdir.addEventListener('click', () => this.browseWorkingDirectory());
+        }
+        
+        if (this.elements.autoRestart) {
+            this.elements.autoRestart.addEventListener('change', (e) => {
+                if (this.elements.restartDelayGroup) {
+                    this.elements.restartDelayGroup.style.display = e.target.checked ? 'block' : 'none';
+                }
+            });
+        }
+        
+        if (this.elements.searchInput) {
+            this.elements.searchInput.addEventListener('input', (e) => this.filterScripts(e.target.value));
+        }
+        
+        // Filter buttons
+        if (this.elements.filterBtns) {
+            this.elements.filterBtns.forEach(btn => {
+                btn.addEventListener('click', () => this.setFilter(btn.dataset.filter));
+            });
+        }
+        
+        // Log viewer buttons
+        if (this.elements.closeLogsBtn) {
+            this.elements.closeLogsBtn.addEventListener('click', () => this.hideLogViewer());
+        }
+        
+        if (this.elements.clearLogsBtn) {
+            this.elements.clearLogsBtn.addEventListener('click', () => this.clearLogs());
+        }
+        
+        if (this.elements.exportLogsBtn) {
+            this.elements.exportLogsBtn.addEventListener('click', () => this.exportLogs());
+        }
+        
+        // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboard(e));
 
+        // Settings modal listeners
+        if (this.elements.settingsModalClose) {
+            this.elements.settingsModalClose.addEventListener('click', () => this.hideSettingsModal());
+        }
         
-        this.elements.settingsModalClose.addEventListener('click', () => this.hideSettingsModal());
-        this.elements.settingsModalCancel.addEventListener('click', () => this.hideSettingsModal());
-        this.elements.settingsModal.addEventListener('click', (e) => {
-            if (e.target === this.elements.settingsModal) {
-                this.hideSettingsModal();
-            }
-        });
+        if (this.elements.settingsModalCancel) {
+            this.elements.settingsModalCancel.addEventListener('click', () => this.hideSettingsModal());
+        }
         
-        this.elements.settingsForm.addEventListener('submit', (e) => this.handleSettingsSubmit(e));
+        if (this.elements.settingsModal) {
+            this.elements.settingsModal.addEventListener('click', (e) => {
+                if (e.target === this.elements.settingsModal) {
+                    this.hideSettingsModal();
+                }
+            });
+        }
         
-        this.elements.autoStartEnabled.addEventListener('change', (e) => {
-            this.elements.autoStartTimeGroup.style.display = e.target.checked ? 'block' : 'none';
-        });
+        if (this.elements.settingsForm) {
+            this.elements.settingsForm.addEventListener('submit', (e) => this.handleSettingsSubmit(e));
+        }
         
-        this.elements.emailNotifications.addEventListener('change', (e) => {
-            this.elements.emailGroup.style.display = e.target.checked ? 'block' : 'none';
-        });
+        if (this.elements.autoStartEnabled) {
+            this.elements.autoStartEnabled.addEventListener('change', (e) => {
+                if (this.elements.autoStartTimeGroup) {
+                    this.elements.autoStartTimeGroup.style.display = e.target.checked ? 'block' : 'none';
+                }
+            });
+        }
         
-        this.elements.globalEmailClose.addEventListener('click', () => this.hideGlobalEmailModal());
-        this.elements.globalEmailCancel.addEventListener('click', () => this.hideGlobalEmailModal());
-        this.elements.globalEmailModal.addEventListener('click', (e) => {
-            if (e.target === this.elements.globalEmailModal) {
-                this.hideGlobalEmailModal();
-            }
-        });
+        if (this.elements.emailNotifications) {
+            this.elements.emailNotifications.addEventListener('change', (e) => {
+                if (this.elements.emailGroup) {
+                    this.elements.emailGroup.style.display = e.target.checked ? 'block' : 'none';
+                }
+            });
+        }
         
-        this.elements.globalEmailForm.addEventListener('submit', (e) => this.handleGlobalEmailSubmit(e));
+        // Global email modal listeners
+        if (this.elements.globalEmailClose) {
+            this.elements.globalEmailClose.addEventListener('click', () => this.hideGlobalEmailModal());
+        }
         
-        this.elements.globalEmailService.addEventListener('change', (e) => {
-            this.elements.globalCustomSmtpGroup.style.display = e.target.value === 'custom' ? 'block' : 'none';
-        });
+        if (this.elements.globalEmailCancel) {
+            this.elements.globalEmailCancel.addEventListener('click', () => this.hideGlobalEmailModal());
+        }
         
-        this.elements.globalTestEmailBtn.addEventListener('click', () => this.sendGlobalTestEmail());
+        if (this.elements.globalEmailModal) {
+            this.elements.globalEmailModal.addEventListener('click', (e) => {
+                if (e.target === this.elements.globalEmailModal) {
+                    this.hideGlobalEmailModal();
+                }
+            });
+        }
         
-        this.elements.parametersInfo.addEventListener('click', (e) => this.showParametersTooltip(e));
-        this.elements.parametersInfo.addEventListener('mouseenter', (e) => this.showParametersTooltip(e));
-        this.elements.parametersInfo.addEventListener('mouseleave', () => this.hideParametersTooltip());
+        if (this.elements.globalEmailForm) {
+            this.elements.globalEmailForm.addEventListener('submit', (e) => this.handleGlobalEmailSubmit(e));
+        }
+        
+        if (this.elements.globalEmailService) {
+            this.elements.globalEmailService.addEventListener('change', (e) => {
+                if (this.elements.globalCustomSmtpGroup) {
+                    this.elements.globalCustomSmtpGroup.style.display = e.target.value === 'custom' ? 'block' : 'none';
+                }
+            });
+        }
+        
+        if (this.elements.globalTestEmailBtn) {
+            this.elements.globalTestEmailBtn.addEventListener('click', () => this.sendGlobalTestEmail());
+        }
+        
+        if (this.elements.parametersInfo) {
+            this.elements.parametersInfo.addEventListener('click', (e) => this.showParametersTooltip(e));
+            this.elements.parametersInfo.addEventListener('mouseenter', (e) => this.showParametersTooltip(e));
+            this.elements.parametersInfo.addEventListener('mouseleave', () => this.hideParametersTooltip());
+        }
     }
 
     setupDragDrop() {
@@ -289,7 +484,7 @@ class ScriptManagerUI {
         
         const supportedExts = ['exe', 'bat', 'cmd', 'ps1', 'js', 'py'];
         if (!supportedExts.includes(fileExt)) {
-            this.showNotification(`Desteklenmeyen dosya tipi: ${fileExt}. Desteklenen: ${supportedExts.join(', ')}`, 'error');
+            this.showNotification(`Unsupported file type: ${fileExt}. Supported: ${supportedExts.join(', ')}`, 'error');
             return;
         }
         
@@ -302,19 +497,24 @@ class ScriptManagerUI {
             restartDelay: 5000
         };
         
-        this.showLoading(`"${fileName}" ekleniyor...`);
+        this.showLoading(`"${fileName}" adding...`);
         
         try {
             const result = await window.electronAPI.addScript(scriptConfig);
             
             if (result.success) {
-                this.showNotification(`"${fileName}" başarıyla eklendi`, 'success');
+                this.showNotification(`"${fileName}" added successfully`, 'success');
+                
+                // Manual refresh in portable build
+                setTimeout(() => {
+                    this.loadScripts();
+                }, 500);
             } else {
-                this.showNotification(`"${fileName}" eklenemedi: ${result.error}`, 'error');
+                this.showNotification(`"${fileName}" could not be added: ${result.error}`, 'error');
             }
         } catch (error) {
-            console.error('Drag & drop script ekleme hatası:', error);
-            this.showNotification(`"${fileName}" eklenirken hata oluştu`, 'error');
+            console.error('Drag & drop script add error:', error);
+            this.showNotification(`"${fileName}" encountered an error during addition`, 'error');
         } finally {
             this.hideLoading();
         }
@@ -325,6 +525,11 @@ class ScriptManagerUI {
             this.scripts.set(script.id, script);
             this.renderScripts();
             this.updateStats();
+            
+            // Extra refresh in portable build
+            setTimeout(() => {
+                this.loadScripts();
+            }, 100);
         });
         
         window.electronAPI.onScriptStarted((script) => {
@@ -343,7 +548,7 @@ class ScriptManagerUI {
             this.scripts.set(data.script.id, data.script);
             this.renderScripts();
             this.updateStats();
-            this.showNotification(`Script Hatası: ${data.error}`, 'error');
+            this.showNotification(`Script Error: ${data.error}`, 'error');
         });
         
         window.electronAPI.onLogAdded((data) => {
@@ -353,24 +558,24 @@ class ScriptManagerUI {
         });
 
         window.electronAPI.onScriptFileChanged((data) => {
-            this.showNotification(`Dosya Değişti: ${data.message}`, 'info');
+            this.showNotification(`File Changed: ${data.message}`, 'info');
             const scriptCard = document.querySelector(`[data-script-id="${data.scriptId}"]`);
             if (scriptCard) {
                 const statusElement = scriptCard.querySelector('.script-status');
                 if (statusElement) {
-                    statusElement.textContent = 'Yeniden Başlatıldı';
+                    statusElement.textContent = 'Restarted';
                     statusElement.className = 'script-status status-warning';
                 }
             }
         });
 
         window.electronAPI.onScriptFileDeleted((data) => {
-            this.showNotification(`Dosya Silindi: ${data.message}`, 'warning');
+            this.showNotification(`File Deleted: ${data.message}`, 'warning');
             const scriptCard = document.querySelector(`[data-script-id="${data.scriptId}"]`);
             if (scriptCard) {
                 const statusElement = scriptCard.querySelector('.script-status');
                 if (statusElement) {
-                    statusElement.textContent = 'Dosya Silindi';
+                    statusElement.textContent = 'File Deleted';
                     statusElement.className = 'script-status status-error';
                 }
             }
@@ -403,7 +608,7 @@ class ScriptManagerUI {
             this.renderScripts();
             this.updateStats();
         } catch (error) {
-            console.error('Scripts yüklenirken hata:', error);
+            console.error('Scripts loading error:', error);
             this.showNotification(this.t('notifications.error'), 'error');
         } finally {
             this.hideLoading();
@@ -567,26 +772,26 @@ class ScriptManagerUI {
                 
                 <div class="script-actions">
                     ${script.status === 'running' ? 
-                        `<button class="btn btn-warning btn-small" onclick="scriptManager.stopScript('${script.id}')">
+                        `<button class="btn btn-warning btn-small" onclick="window.scriptManager.stopScript('${script.id}')">
                             <span data-i18n="scripts.stop">${this.t('scripts.stop')}</span>
                         </button>
-                        <button class="btn btn-warning btn-small" onclick="scriptManager.restartScript('${script.id}')">
+                        <button class="btn btn-warning btn-small" onclick="window.scriptManager.restartScript('${script.id}')">
                             <span data-i18n="scripts.restart">${this.t('scripts.restart')}</span>
                         </button>` :
-                        `<button class="btn btn-primary btn-small" onclick="scriptManager.startScript('${script.id}')">
+                        `<button class="btn btn-primary btn-small" onclick="window.scriptManager.startScript('${script.id}')">
                             <span data-i18n="scripts.start">${this.t('scripts.start')}</span>
                         </button>`
                     }
-                    <button class="btn btn-secondary btn-small" onclick="scriptManager.showLogs('${script.id}')">
+                    <button class="btn btn-secondary btn-small" onclick="window.scriptManager.showLogs('${script.id}')">
                         <span data-i18n="scripts.viewLogs">${this.t('scripts.viewLogs')}</span>
                     </button>
-                    <button class="btn btn-success btn-small" onclick="scriptManager.openScriptFile('${script.id}')">
+                    <button class="btn btn-success btn-small" onclick="window.scriptManager.openScriptFile('${script.id}')">
                         <span data-i18n="scripts.openFile">${this.t('scripts.openFile')}</span>
                     </button>
-                    <button class="btn btn-info btn-small" onclick="scriptManager.showScriptSettings('${script.id}')">
+                    <button class="btn btn-info btn-small" onclick="window.scriptManager.showScriptSettings('${script.id}')">
                         <span data-i18n="app.settings">${this.t('app.settings')}</span>
                     </button>
-                    <button class="btn btn-danger btn-small" onclick="scriptManager.removeScript('${script.id}')">
+                    <button class="btn btn-danger btn-small" onclick="window.scriptManager.removeScript('${script.id}')">
                         <span data-i18n="scripts.remove">${this.t('scripts.remove')}</span>
                     </button>
                 </div>
@@ -616,7 +821,7 @@ class ScriptManagerUI {
                 this.showNotification(`${this.t('notifications.error')}: ${result.error}`, 'error');
             }
         } catch (error) {
-            console.error('Script başlatma hatası:', error);
+            console.error('Script start error:', error);
             this.showNotification(this.t('notifications.error'), 'error');
         } finally {
             this.hideLoading();
@@ -635,7 +840,7 @@ class ScriptManagerUI {
                 this.showNotification(`${this.t('notifications.error')}: ${result.error}`, 'error');
             }
         } catch (error) {
-            console.error('Script durdurma hatası:', error);
+            console.error('Script stop error:', error);
             this.showNotification(this.t('notifications.error'), 'error');
         } finally {
             this.hideLoading();
@@ -643,19 +848,19 @@ class ScriptManagerUI {
     }
 
     async restartScript(scriptId) {
-        this.showLoading('Script yeniden başlatılıyor...');
+        this.showLoading('Script restarting...');
         
         try {
             const result = await window.electronAPI.restartScript(scriptId);
             
             if (result.success) {
-                this.showNotification('Script yeniden başlatıldı', 'success');
+                this.showNotification('Script restarted', 'success');
             } else {
-                this.showNotification(`Script yeniden başlatılamadı: ${result.error}`, 'error');
+                this.showNotification(`Script could not be restarted: ${result.error}`, 'error');
             }
         } catch (error) {
-            console.error('Script yeniden başlatma hatası:', error);
-            this.showNotification('Script yeniden başlatılırken hata oluştu', 'error');
+            console.error('Script restart error:', error);
+            this.showNotification('Error restarting script', 'error');
         } finally {
             this.hideLoading();
         }
@@ -665,7 +870,7 @@ class ScriptManagerUI {
         const script = this.scripts.get(scriptId);
         if (!script) return;
         
-        if (!confirm(`"${script.name}" scriptini silmek istediğinizden emin misiniz?`)) {
+        if (!confirm(`Are you sure you want to delete "${script.name}"?`)) {
             return;
         }
         
@@ -683,7 +888,7 @@ class ScriptManagerUI {
                 this.showNotification(`${this.t('notifications.error')}: ${result.error}`, 'error');
             }
         } catch (error) {
-            console.error('Script silme hatası:', error);
+            console.error('Script remove error:', error);
             this.showNotification(this.t('notifications.error'), 'error');
         } finally {
             this.hideLoading();
@@ -703,7 +908,7 @@ class ScriptManagerUI {
                 this.showNotification(`${this.t('notifications.error')}: ${result.error}`, 'error');
             }
         } catch (error) {
-            console.error('Dosya açma hatası:', error);
+            console.error('File open error:', error);
             this.showNotification(this.t('notifications.error'), 'error');
         }
     }
@@ -745,11 +950,16 @@ class ScriptManagerUI {
             if (result.success) {
                 this.hideModal();
                 this.showNotification(this.t('notifications.scriptAdded'), 'success');
+                
+                // Manual refresh in portable build
+                setTimeout(() => {
+                    this.loadScripts();
+                }, 500);
             } else {
                 this.showNotification(`${this.t('notifications.error')}: ${result.error}`, 'error');
             }
         } catch (error) {
-            console.error('Script ekleme hatası:', error);
+            console.error('Script add error:', error);
             this.showNotification(this.t('notifications.error'), 'error');
         } finally {
             this.hideLoading();
@@ -773,8 +983,8 @@ class ScriptManagerUI {
                 }
             }
         } catch (error) {
-            console.error('Dosya seçme hatası:', error);
-            this.showNotification('Dosya seçilirken hata oluştu', 'error');
+            console.error('File selection error:', error);
+            this.showNotification('Error selecting file', 'error');
         }
     }
 
@@ -785,8 +995,8 @@ class ScriptManagerUI {
                 this.elements.workingDir.value = dirPath;
             }
         } catch (error) {
-            console.error('Klasör seçme hatası:', error);
-            this.showNotification('Klasör seçilirken hata oluştu', 'error');
+            console.error('Folder selection error:', error);
+            this.showNotification('Error selecting folder', 'error');
         }
     }
 
@@ -795,7 +1005,7 @@ class ScriptManagerUI {
         if (!script) return;
         
         this.currentLogScript = scriptId;
-        this.elements.logTitle.textContent = `${script.name} - Loglar`;
+        this.elements.logTitle.textContent = `${script.name} - Logs`;
         this.elements.logViewer.classList.add('active');
         
         this.logBuffer = [];
@@ -811,14 +1021,14 @@ class ScriptManagerUI {
             this.logBuffer = logs || [];
             this.renderLogsOptimized();
         } catch (error) {
-            console.error('Log yükleme hatası:', error);
-            this.showNotification('Loglar yüklenirken hata oluştu', 'error');
+            console.error('Log loading error:', error);
+            this.showNotification('Error loading logs', 'error');
         }
     }
 
     renderLogsOptimized() {
         if (!this.logBuffer || this.logBuffer.length === 0) {
-            this.elements.logContent.innerHTML = '<div class="log-empty"><p>Henüz log kaydı yok</p></div>';
+            this.elements.logContent.innerHTML = '<div class="log-empty"><p>No log entries yet</p></div>';
             return;
         }
         
@@ -896,19 +1106,71 @@ class ScriptManagerUI {
         this.currentLogScript = null;
     }
 
-    clearLogs() {
-        this.elements.logContent.innerHTML = '<div class="log-empty"><p>Loglar temizlendi</p></div>';
+    async openLogDirectory() {
+        try {
+            const result = await window.electronAPI.openLogDirectory();
+            if (result.success) {
+                this.showNotification('Log directory opened', 'success');
+            } else {
+                this.showNotification('Could not open log directory: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Log directory open error:', error);
+            this.showNotification('Could not open log directory', 'error');
+        }
+    }
+
+    async clearLogs() {
+        if (!this.currentLogScript) {
+            this.showNotification('Please open a script\'s logs first.', 'error');
+            return;
+        }
+        
+        if (confirm('Are you sure you want to clear all logs?')) {
+            try {
+                // UI'daki logları temizle
+                this.elements.logContent.innerHTML = '<div class="log-empty"><p>Logs cleared</p></div>';
+                this.logBuffer = [];
+                this.showNotification('Logs cleared', 'success');
+            } catch (error) {
+                console.error('Log clearing error:', error);
+                this.showNotification('Error clearing logs', 'error');
+            }
+        }
+    }
+
+    closeLogs() {
+        this.elements.logViewer.classList.remove('active');
+        this.currentLogScript = null;
+        this.logBuffer = [];
+        this.elements.logContent.innerHTML = '';
+    }
+
+    async checkPortableStatus() {
+        try {
+            const status = await window.electronAPI.getPortableStatus();
+            if (status.isPortable) {
+                const logDir = await window.electronAPI.getLogDirectory();
+                this.showNotification(
+                    `Portable build active - Logs are stored here: ${logDir}`, 
+                    'info', 
+                    8000
+                );
+            }
+        } catch (error) {
+            console.error('Portable status check error:', error);
+        }
     }
 
     async exportLogs() {
         if (!this.currentLogScript) {
-            this.showNotification('Önce bir scriptin loglarını açmalısınız.', 'error');
+            this.showNotification('Please open a script\'s logs first.', 'error');
             return;
         }
         try {
             const logs = await window.electronAPI.getLogs(this.currentLogScript);
             if (!logs || logs.length === 0) {
-                this.showNotification('Dışa aktarılacak log yok.', 'warning');
+                this.showNotification('No logs to export.', 'warning');
                 return;
             }
             const logText = logs.map(log => {
@@ -917,7 +1179,7 @@ class ScriptManagerUI {
             }).join('\n');
 
             const { filePath, canceled } = await window.electronAPI.showSaveDialog({
-                title: 'Logları Dışa Aktar',
+                title: 'Export Logs',
                 defaultPath: 'script-logs.txt',
                 filters: [
                     { name: 'Text Files', extensions: ['txt'] },
@@ -928,13 +1190,13 @@ class ScriptManagerUI {
 
             const result = await window.electronAPI.saveFile(filePath, logText);
             if (result.success) {
-                this.showNotification('Loglar başarıyla dışa aktarıldı.', 'success');
+                this.showNotification('Logs exported successfully.', 'success');
             } else {
-                this.showNotification('Loglar dışa aktarılırken hata oluştu.', 'error');
+                this.showNotification('Error exporting logs.', 'error');
             }
         } catch (err) {
-            console.error('Log export hatası:', err);
-            this.showNotification('Loglar dışa aktarılırken hata oluştu.', 'error');
+            console.error('Log export error:', err);
+            this.showNotification('Error exporting logs.', 'error');
         }
     }
 
@@ -952,7 +1214,7 @@ class ScriptManagerUI {
         this.renderScripts();
     }
 
-    showLoading(message = 'Yükleniyor...') {
+    showLoading(message = 'Loading...') {
         this.elements.loadingText.textContent = message;
         this.elements.loadingOverlay.classList.add('active');
     }
@@ -991,7 +1253,7 @@ class ScriptManagerUI {
             this.elements.uptime.textContent = `${hours}s ${minutes}d`;
             
         } catch (error) {
-            console.error('Resource update hatası:', error);
+            console.error('Resource update error:', error);
             this.elements.cpuUsage.textContent = 'N/A';
             this.elements.memoryUsage.textContent = 'N/A';
             this.elements.uptime.textContent = 'N/A';
@@ -1089,11 +1351,11 @@ class ScriptManagerUI {
                     this.scheduleScript(this.currentSettingsScript, settings.autoStartTime);
                 }
             } else {
-                this.showNotification(`Ayarlar kaydedilemedi: ${result.error}`, 'error');
+                this.showNotification(`Settings could not be saved: ${result.error}`, 'error');
             }
         } catch (error) {
-            console.error('Ayarlar kaydetme hatası:', error);
-            this.showNotification('Ayarlar kaydedilirken hata oluştu', 'error');
+            console.error('Settings save error:', error);
+            this.showNotification('Error saving settings', 'error');
         } finally {
             this.hideLoading();
         }
@@ -1121,16 +1383,16 @@ class ScriptManagerUI {
         script.schedulerTimer = setTimeout(async () => {
             try {
                 await this.restartScript(scriptId);
-                this.showNotification(`${script.name} otomatik olarak yeniden başlatıldı`, 'success');
+                this.showNotification(`${script.name} restarted automatically`, 'success');
                 this.scheduleScript(scriptId, time);
             } catch (error) {
-                console.error('Otomatik yeniden başlatma hatası:', error);
-                this.showNotification(`${script.name} otomatik yeniden başlatılamadı`, 'error');
+                console.error('Auto-restart error:', error);
+                this.showNotification(`${script.name} could not be restarted automatically`, 'error');
             }
         }, delay);
         
         const timeString = scheduledTime.toLocaleString('tr-TR');
-        this.showNotification(`${script.name} ${timeString} tarihinde otomatik yeniden başlatılacak`, 'info');
+        this.showNotification(`${script.name} will be restarted automatically on ${timeString}`, 'info');
     }
 
     async showGlobalEmailModal() {
@@ -1150,8 +1412,8 @@ class ScriptManagerUI {
             
             this.elements.globalEmailModal.classList.add('active');
         } catch (error) {
-            console.error('Global email ayarları yüklenemedi:', error);
-            this.showNotification('Email ayarları yüklenemedi', 'error');
+            console.error('Global email settings could not be loaded:', error);
+            this.showNotification('Could not load email settings', 'error');
         }
     }
 
@@ -1179,13 +1441,13 @@ class ScriptManagerUI {
             
             if (result.success) {
                 this.hideGlobalEmailModal();
-                this.showNotification('Email ayarları kaydedildi', 'success');
+                this.showNotification('Email settings saved', 'success');
             } else {
-                this.showNotification(`Email ayarları kaydedilemedi: ${result.error}`, 'error');
+                this.showNotification(`Email settings could not be saved: ${result.error}`, 'error');
             }
         } catch (error) {
-            console.error('Email ayarları kaydetme hatası:', error);
-            this.showNotification('Email ayarları kaydedilirken hata oluştu', 'error');
+            console.error('Email settings save error:', error);
+            this.showNotification('Error saving email settings', 'error');
         } finally {
             this.hideLoading();
         }
@@ -1194,13 +1456,13 @@ class ScriptManagerUI {
     async sendGlobalTestEmail() {
         const email = this.elements.globalEmailUsername.value;
         if (!email) {
-            this.showNotification('Lütfen email adresini girin', 'error');
+            this.showNotification('Please enter an email address', 'error');
             return;
         }
         
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
-            this.showNotification('Geçerli bir email adresi girin', 'error');
+            this.showNotification('Please enter a valid email address', 'error');
             return;
         }
         
@@ -1209,13 +1471,13 @@ class ScriptManagerUI {
         try {
             const result = await window.electronAPI.testGlobalEmail(email);
             if (result.success) {
-                this.showNotification('Test email başarıyla gönderildi', 'success');
+                this.showNotification('Test email sent successfully', 'success');
             } else {
-                this.showNotification(`Test email gönderilemedi: ${result.error}`, 'error');
+                this.showNotification(`Could not send test email: ${result.error}`, 'error');
             }
         } catch (error) {
-            console.error('Test email hatası:', error);
-            this.showNotification('Test email gönderilirken hata oluştu', 'error');
+            console.error('Test email error:', error);
+            this.showNotification('Error sending test email', 'error');
         } finally {
             this.hideLoading();
         }
@@ -1249,35 +1511,67 @@ class ScriptManagerUI {
         }
     }
 
+    // i18n çeviri metodu
     t(key, params = {}) {
         if (window.i18n) {
             return window.i18n.t(key, params);
         }
-        return key;
+        return key; // Fallback
     }
     
-    initializeI18n() {
+    async loadLanguage(language = 'en') {
         try {
             if (window.i18n) {
-                window.i18n.init();
+                await window.i18n.changeLanguage(language);
                 
+                // UI elements update
                 this.updateDynamicContent();
+                this.updateLanguageRadios();
+            }
+        } catch (error) {
+            console.error('Language loading error:', error);
+        }
+    }
+
+    async initializeI18n() {
+        try {
+            if (window.i18n) {
+                await window.i18n.init();
+                this.updateDynamicContent();
+                this.updateLanguageRadios();
+            } else {
+                console.error('i18n not available');
             }
         } catch (error) {
             console.error('Error initializing i18n:', error);
         }
     }
     
+    updateLanguageRadios() {
+        // Update language radios in the menu (send info to main process)
+        
+        // HTML does not have language selector, radios are managed by main process
+        // This method's purpose is to update UI in the renderer
+        
+        // If HTML will have a language selector in the future, code can be added here
+    }
+
     async handleLanguageChangeFromMenu(language) {
         try {
             if (window.i18n) {
                 await window.i18n.changeLanguage(language);
+                
                 this.updateDynamicContent();
-                this.showNotification(window.i18n.t('notifications.languageChanged'), 'success');
+                
+                this.updateLanguageRadios();
+                
+                this.showNotification(`Language changed to: ${language === 'en' ? 'English' : 'Turkish'}`, 'success');
+            } else {
+                console.error('i18n not available in handleLanguageChangeFromMenu');
             }
         } catch (error) {
-            console.error('Error changing language:', error);
-            this.showNotification(window.i18n.t('notifications.error'), 'error');
+            console.error('Error in handleLanguageChangeFromMenu:', error);
+            this.showNotification('Error changing language', 'error');
         }
     }
     
@@ -1287,9 +1581,39 @@ class ScriptManagerUI {
         this.renderScripts();
         
         this.updateButtonTexts();
+        
+        this.updateStaticTexts();
     }
     
     updateButtonTexts() {
+        // Update text for static buttons
+        const elements = document.querySelectorAll('[data-i18n]');
+        elements.forEach(element => {
+            const key = element.getAttribute('data-i18n');
+            if (key && window.i18n) {
+                element.textContent = window.i18n.t(key);
+            }
+        });
+    }
+    
+    updateStaticTexts() {
+        // Update other static texts
+        if (window.i18n) {
+            // Update menu texts
+            const menuItems = document.querySelectorAll('.menu-item');
+            menuItems.forEach(item => {
+                const key = item.getAttribute('data-i18n');
+                if (key) {
+                    item.textContent = window.i18n.t(key);
+                }
+            });
+            
+            // Update placeholder texts
+            const searchInput = document.getElementById('search-input');
+            if (searchInput) {
+                searchInput.placeholder = window.i18n.t('scripts.searchPlaceholder');
+            }
+        }
     }
     
     showParametersTooltip(e) {
@@ -1371,7 +1695,6 @@ class ScriptManagerUI {
 
 let scriptManager;
 
-document.addEventListener('DOMContentLoaded', () => {
-    scriptManager = new ScriptManagerUI();
-    console.log('Script Manager UI initialized');
-});
+// Start ScriptManager
+scriptManager = new ScriptManagerUI();
+window.scriptManager = scriptManager;

@@ -130,19 +130,23 @@
                 <!-- Log Viewer -->
                 <div class="log-viewer" id="log-viewer">
                     <div class="log-header">
-                        <h3 id="log-title" data-i18n="logs.title">Log Viewer</h3>
+                        <h3 id="log-title">Script Logları</h3>
                         <div class="log-controls">
-                            <button id="clear-logs-btn" class="btn btn-small">
-                                <span class="icon">🗑️</span>
-                                <span data-i18n="app.clear">Clear</span>
+                            <button id="export-logs" class="btn btn-secondary">
+                                <i class="fas fa-download"></i>
+                                <span data-i18n="logs.export">Export Logs</span>
                             </button>
-                            <button id="export-logs-btn" class="btn btn-small">
-                                <span class="icon">💾</span>
-                                <span data-i18n="app.export">Export</span>
+                            <button id="clear-logs" class="btn btn-secondary">
+                                <i class="fas fa-trash"></i>
+                                <span data-i18n="logs.clear">Clear</span>
                             </button>
-                            <button id="close-logs-btn" class="btn btn-small">
-                                <span class="icon">✖️</span>
-                                <span data-i18n="app.close">Close</span>
+                            <button id="open-log-directory" class="btn btn-secondary">
+                                <i class="fas fa-folder-open"></i>
+                                <span data-i18n="logs.openDirectory">Open Log Directory</span>
+                            </button>
+                            <button id="close-logs" class="btn btn-secondary">
+                                <i class="fas fa-times"></i>
+                                <span data-i18n="logs.close">Close</span>
                             </button>
                         </div>
                     </div>

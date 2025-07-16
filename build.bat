@@ -49,9 +49,18 @@ if %errorlevel% neq 0 (
 echo Installing dependencies...
 call npm install
 
-echo Cleaning cache...
+echo Cleaning all caches...
 if exist "%LOCALAPPDATA%\electron-builder" (
     rmdir /s /q "%LOCALAPPDATA%\electron-builder" 2>nul
+)
+if exist "%APPDATA%\electron-builder" (
+    rmdir /s /q "%APPDATA%\electron-builder" 2>nul
+)
+if exist "%LOCALAPPDATA%\electron" (
+    rmdir /s /q "%LOCALAPPDATA%\electron" 2>nul
+)
+if exist "%USERPROFILE%\.electron" (
+    rmdir /s /q "%USERPROFILE%\.electron" 2>nul
 )
 
 echo Cleaning dist folder...
@@ -59,9 +68,14 @@ if exist "dist" (
     rmdir /s /q "dist" 2>nul
 )
 
+echo Cleaning NPM cache...
+call npm cache clean --force
+
 echo Setting up build configuration...
 set ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES=true
 set CSC_IDENTITY_AUTO_DISCOVERY=false
+set ELECTRON_CACHE=%TEMP%\electron-cache
+set ELECTRON_BUILDER_CACHE=%TEMP%\electron-builder-cache
 
 echo.
 echo Build options:
@@ -140,9 +154,18 @@ if %errorlevel% neq 0 (
 echo Bağımlılıklar yükleniyor...
 call npm install
 
-echo Önbellek temizleniyor...
+echo Önbellek tamamen temizleniyor...
 if exist "%LOCALAPPDATA%\electron-builder" (
     rmdir /s /q "%LOCALAPPDATA%\electron-builder" 2>nul
+)
+if exist "%APPDATA%\electron-builder" (
+    rmdir /s /q "%APPDATA%\electron-builder" 2>nul
+)
+if exist "%LOCALAPPDATA%\electron" (
+    rmdir /s /q "%LOCALAPPDATA%\electron" 2>nul
+)
+if exist "%USERPROFILE%\.electron" (
+    rmdir /s /q "%USERPROFILE%\.electron" 2>nul
 )
 
 echo Dist klasörü temizleniyor...
@@ -150,9 +173,14 @@ if exist "dist" (
     rmdir /s /q "dist" 2>nul
 )
 
+echo NPM cache temizleniyor...
+call npm cache clean --force
+
 echo Build ayarları yapılıyor...
 set ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES=true
 set CSC_IDENTITY_AUTO_DISCOVERY=false
+set ELECTRON_CACHE=%TEMP%\electron-cache
+set ELECTRON_BUILDER_CACHE=%TEMP%\electron-builder-cache
 
 echo.
 echo Build seçenekleri:

@@ -13,14 +13,26 @@ class I18nManager {
 
     async loadDefaultLanguage() {
         try {
-            const savedLanguage = localStorage.getItem('app-language');
-            if (savedLanguage && this.availableLanguages[savedLanguage]) {
-                this.currentLanguage = savedLanguage;
-            }
+            // Her zaman İngilizce ile başla (stock davranış)
+            let targetLanguage = 'en';
+            
+            // Main process'ten dil bilgisi almayı devre dışı bırak
+            // try {
+            //     if (window.electronAPI && window.electronAPI.getCurrentLanguage) {
+            //         targetLanguage = await window.electronAPI.getCurrentLanguage();
+            //         console.log('i18n: Language from main process:', targetLanguage);
+            //     } else {
+            //         console.log('i18n: electronAPI not available, using default');
+            //     }
+            // } catch (error) {
+            //     console.warn('i18n: Could not get language from main process:', error);
+            // }
+            
+            this.currentLanguage = targetLanguage;
             
             await this.loadLanguage(this.currentLanguage);
         } catch (error) {
-            console.error('Error loading default language:', error);
+            console.error('i18n: Error loading default language:', error);
             await this.loadLanguage(this.fallbackLanguage);
         }
     }
@@ -106,6 +118,7 @@ class I18nManager {
 
     async changeLanguage(language) {
         if (!this.availableLanguages[language]) {
+            console.error('i18n: Language not supported:', language);
             throw new Error(`Language not supported: ${language}`);
         }
         
@@ -113,6 +126,9 @@ class I18nManager {
         
         try {
             await this.loadLanguage(language);
+            
+            // Dil değişikliğini kaydet (session için)
+            localStorage.setItem('app-language', language);
             
             const event = new CustomEvent('languageChanged', {
                 detail: { 
@@ -124,7 +140,7 @@ class I18nManager {
             
             return true;
         } catch (error) {
-            console.error('Error changing language:', error);
+            console.error('i18n: Error changing language:', error);
             throw error;
         }
     }
@@ -173,15 +189,17 @@ class I18nManager {
     async init() {
         try {
             await this.loadDefaultLanguage();
+            
+            // DOM'u güncelle
             this.updateDOM();
             
+            // Language change event listener'ı kur
             document.addEventListener('languageChanged', () => {
                 this.updateDOM();
             });
             
-            console.log(`i18n initialized with language: ${this.currentLanguage}`);
         } catch (error) {
-            console.error('Error initializing i18n:', error);
+            console.error('i18n: Error initializing:', error);
         }
     }
 }

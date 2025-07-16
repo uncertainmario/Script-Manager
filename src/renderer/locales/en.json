@@ -106,9 +106,11 @@
   },
   "logs": {
     "title": "Log Viewer",
-    "empty": "Select a script or start a script to view logs",
-    "exportLogs": "Export Logs",
-    "clearLogs": "Clear Logs"
+    "export": "Export Logs",
+    "clear": "Clear",
+    "close": "Close",
+    "openDirectory": "Open Log Directory",
+    "empty": "No logs available yet"
   },
   "menu": {
     "settings": "Settings",

@@ -11,14 +11,36 @@ class ProcessManager extends EventEmitter {
         this.logBuffers = new Map(); // Process ID -> Log buffer
         this.maxLogLines = 1000; // Maksimum log satırı
         
-        // Proje kök dizinindeki logs klasörünü kullan
-        const projectRoot = process.cwd();
+        // Portable build mi kontrol et
+        this.isPortable = this.detectPortableBuild();
+        
+        // Proje kök dizinini belirle
+        const projectRoot = this.getProjectRoot();
         this.dataFile = path.join(projectRoot, 'data', 'scripts.json');
         this.logsDir = path.join(projectRoot, 'logs');
         
         this.ensureDataDirectory();
         this.ensureLogsDirectory();
         this.loadScriptsFromFile();
+        
+        // Portable build durumunu bildir
+        this.logPortableBuildStatus();
+    }
+
+    // Portable build durumunu logla
+    logPortableBuildStatus() {
+        if (this.isPortable) {
+            console.log('='.repeat(50));
+            console.log('🚀 PORTABLE BUILD AKTIF');
+            console.log('='.repeat(50));
+            console.log(`📁 Data klasörü: ${path.dirname(this.dataFile)}`);
+            console.log(`📋 Logs klasörü: ${this.logsDir}`);
+            console.log(`💡 Portable build'de loglar .exe dosyasının bulunduğu klasörde saklanır.`);
+            console.log(`   Eğer yazma izni yoksa, Documents/ScriptManager klasörüne yazılır.`);
+            console.log('='.repeat(50));
+        } else {
+            console.log('📁 Normal build - Data ve logs proje klasöründe saklanır.');
+        }
     }
 
     // Script tanımlama (security validation ile)
@@ -751,6 +773,19 @@ class ProcessManager extends EventEmitter {
                 console.log(`Data klasörü oluşturuldu: ${dataDir}`);
             } catch (error) {
                 console.error('Data klasörü oluşturma hatası:', error.message);
+                
+                // Portable build'de yazma izni yoksa alternatif klasör kullan
+                if (this.isPortable) {
+                    const alternativeDataDir = this.getAlternativeDataDirectory();
+                    this.dataFile = path.join(alternativeDataDir, 'data', 'scripts.json');
+                    
+                    try {
+                        fs.mkdirSync(path.dirname(this.dataFile), { recursive: true });
+                        console.log(`Alternatif data klasörü oluşturuldu: ${path.dirname(this.dataFile)}`);
+                    } catch (altError) {
+                        console.error('Alternatif data klasörü oluşturma hatası:', altError.message);
+                    }
+                }
             }
         }
     }
@@ -763,8 +798,37 @@ class ProcessManager extends EventEmitter {
                 console.log(`Logs klasörü oluşturuldu: ${this.logsDir}`);
             } catch (error) {
                 console.error('Logs klasörü oluşturma hatası:', error.message);
+                
+                // Portable build'de yazma izni yoksa alternatif klasör kullan
+                if (this.isPortable) {
+                    const alternativeLogsDir = this.getAlternativeLogsDirectory();
+                    this.logsDir = alternativeLogsDir;
+                    
+                    try {
+                        fs.mkdirSync(this.logsDir, { recursive: true });
+                        console.log(`Alternatif logs klasörü oluşturuldu: ${this.logsDir}`);
+                    } catch (altError) {
+                        console.error('Alternatif logs klasörü oluşturma hatası:', altError.message);
+                    }
+                }
             }
         }
+    }
+
+    // Alternatif data klasörü al (portable build için)
+    getAlternativeDataDirectory() {
+        const os = require('os');
+        const userDataDir = path.join(os.homedir(), 'Documents', 'ScriptManager');
+        console.log(`Alternatif data klasörü: ${userDataDir}`);
+        return userDataDir;
+    }
+
+    // Alternatif logs klasörü al (portable build için)
+    getAlternativeLogsDirectory() {
+        const os = require('os');
+        const userLogsDir = path.join(os.homedir(), 'Documents', 'ScriptManager', 'logs');
+        console.log(`Alternatif logs klasörü: ${userLogsDir}`);
+        return userLogsDir;
     }
 
     // Script'leri dosyadan yükle
@@ -830,6 +894,50 @@ class ProcessManager extends EventEmitter {
         // Script'leri temizleme - kalıcı olmaları için
         // this.scripts.clear();
         this.logBuffers.clear();
+    }
+
+    // Portable build mi kontrol et
+    detectPortableBuild() {
+        try {
+            const appPath = process.execPath;
+            const appDir = path.dirname(appPath);
+            const appName = path.basename(appPath);
+            
+            // Portable build tespiti:
+            // 1. .exe dosyası adında "Portable" geçiyorsa
+            // 2. Veya process.env.PORTABLE_EXECUTABLE_DIR varsa
+            // 3. Veya app.exe'nin bulunduğu klasörde resources klasörü varsa
+            
+            const isPortableByName = appName.toLowerCase().includes('portable');
+            const isPortableByEnv = process.env.PORTABLE_EXECUTABLE_DIR !== undefined;
+            const resourcesPath = path.join(appDir, 'resources');
+            const isPortableByResources = fs.existsSync(resourcesPath);
+            
+            const isPortable = isPortableByName || isPortableByEnv || isPortableByResources;
+            
+            if (isPortable) {
+                console.log(`Portable build tespit edildi: ${appName}`);
+                console.log(`Uygulama dizini: ${appDir}`);
+            }
+            
+            return isPortable;
+        } catch (error) {
+            console.error('Portable build tespit hatası:', error);
+            return false;
+        }
+    }
+
+    // Proje kök dizinini belirle
+    getProjectRoot() {
+        if (this.isPortable) {
+            // Portable build'de .exe dosyasının bulunduğu klasörü kullan
+            const appPath = process.execPath;
+            const appDir = path.dirname(appPath);
+            console.log(`Portable build kök dizini: ${appDir}`);
+            return appDir;
+        }
+        // Normal build'de process.cwd() kullan
+        return process.cwd();
     }
 }
 
